@@ -2,8 +2,8 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { PlusCircle, ArrowRight, MapPin, Cpu, Wheat, Calendar } from 'lucide-react'
-import type { Pet, MedicalRecord } from '@/types'
+import { PlusCircle, ArrowRight, MapPin, Cpu, Wheat, Calendar, Stethoscope, Phone } from 'lucide-react'
+import type { Pet, MedicalRecord, Vet } from '@/types'
 
 const visitTypeLabels: Record<string, string> = {
   routine: 'בדיקה שגרתית',
@@ -38,8 +38,15 @@ export default async function PetDetailPage({
     .eq('pet_id', params.id)
     .order('visit_date', { ascending: false })
 
+  const { data: vetsData } = await supabase
+    .from('vets')
+    .select('*')
+    .eq('pet_id', params.id)
+    .order('created_at', { ascending: true })
+
   const petData = pet as Pet
   const medicalRecords = (records ?? []) as MedicalRecord[]
+  const vets = (vetsData ?? []) as Vet[]
 
   return (
     <div>
@@ -96,9 +103,22 @@ export default async function PetDetailPage({
               )}
 
               {petData.home_address && (
-                <div className="flex items-start gap-2 text-sm text-slate-600">
-                  <MapPin className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
-                  <span>{petData.home_address}</span>
+                <div className="space-y-2">
+                  <div className="flex items-start gap-2 text-sm text-slate-600">
+                    <MapPin className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                    <span>{petData.home_address}</span>
+                  </div>
+                  <div className="rounded-xl overflow-hidden border border-slate-200">
+                    <iframe
+                      title="כתובת מגורים"
+                      width="100%"
+                      height="150"
+                      style={{ border: 0 }}
+                      loading="lazy"
+                      referrerPolicy="no-referrer-when-downgrade"
+                      src={`https://maps.google.com/maps?q=${encodeURIComponent(petData.home_address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -131,8 +151,53 @@ export default async function PetDetailPage({
           </div>
         </div>
 
-        {/* Medical Records */}
-        <div className="lg:col-span-2">
+        {/* Vets & Medical Records Column */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Vets */}
+          {vets.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Stethoscope className="w-5 h-5 text-indigo-400" />
+                וטרינרים מטפלים
+              </h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {vets.map((vet) => (
+                  <div key={vet.id} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-3">
+                    <h3 className="font-semibold text-slate-800">{vet.name}</h3>
+                    {vet.phone && (
+                      <div className="flex items-center gap-2 text-sm text-slate-600">
+                        <Phone className="w-4 h-4 text-indigo-400 shrink-0" />
+                        <a href={`tel:${vet.phone}`} dir="ltr" className="hover:text-indigo-600 transition-colors">
+                          {vet.phone}
+                        </a>
+                      </div>
+                    )}
+                    {vet.clinic_address && (
+                      <div className="space-y-2">
+                        <div className="flex items-start gap-2 text-sm text-slate-600">
+                          <MapPin className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                          <span>{vet.clinic_address}</span>
+                        </div>
+                        <div className="rounded-xl overflow-hidden border border-slate-200">
+                          <iframe
+                            title={`מרפאה - ${vet.name}`}
+                            width="100%"
+                            height="150"
+                            style={{ border: 0 }}
+                            loading="lazy"
+                            referrerPolicy="no-referrer-when-downgrade"
+                            src={`https://maps.google.com/maps?q=${encodeURIComponent(vet.clinic_address)}&t=&z=15&ie=UTF8&iwloc=&output=embed`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Medical Records */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-800">רשומות רפואיות</h2>

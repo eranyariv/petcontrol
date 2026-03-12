@@ -36,3 +36,12 @@ export interface MedicalRecord {
   vet_name: string | null
   created_at: string
 }
+
+export interface Vet {
+  id: string
+  pet_id: string
+  name: string
+  clinic_address: string | null
+  phone: string | null
+  created_at: string
+}
