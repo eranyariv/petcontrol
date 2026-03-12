@@ -1,10 +1,13 @@
 export type PetType = 'dog' | 'cat'
 export type VisitType = 'routine' | 'vaccine' | 'treatment'
+export type UserRole = 'admin' | 'standard'
 
 export interface Profile {
   id: string
   full_name: string | null
   avatar_url: string | null
+  email: string | null
+  role: UserRole
   updated_at: string | null
 }
 

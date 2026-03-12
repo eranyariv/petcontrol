@@ -2,6 +2,7 @@
 
 import { createClient } from '@/lib/supabase/client'
 import { useState } from 'react'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [loading, setLoading] = useState(false)
@@ -22,9 +23,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Header */}
         <div className="text-center mb-10">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-indigo-600 rounded-2xl mb-4 shadow-lg">
-            <span className="text-4xl">🐾</span>
-          </div>
+          <Image src="/logo.png" alt="מחמד" width={80} height={80} className="rounded-2xl shadow-lg mx-auto mb-4" />
           <h1 className="text-4xl font-bold text-slate-800 mb-2">מחמד</h1>
           <p className="text-slate-500 text-lg">ניהול חיות המחמד שלך, בצורה חכמה</p>
         </div>

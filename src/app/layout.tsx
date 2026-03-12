@@ -4,6 +4,10 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'מחמד - ניהול חיות מחמד',
   description: 'אפליקציה לניהול חיות המחמד שלך',
+  icons: {
+    icon: '/logo.png',
+    apple: '/logo.png',
+  },
 }
 
 export default function RootLayout({

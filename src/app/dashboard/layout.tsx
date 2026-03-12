@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Navbar from '@/components/Navbar'
+import type { Profile } from '@/types'
 
 export default async function DashboardLayout({
   children,
@@ -14,9 +15,15 @@ export default async function DashboardLayout({
     redirect('/login')
   }
 
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('*')
+    .eq('id', user.id)
+    .single()
+
   return (
     <div className="min-h-screen bg-slate-50" dir="rtl">
-      <Navbar user={user} />
+      <Navbar user={user} profile={profile as Profile | null} />
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {children}
       </main>
