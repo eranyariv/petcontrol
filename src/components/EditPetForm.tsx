@@ -12,27 +12,31 @@ import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
 import getCroppedImg from '@/lib/cropImage'
 import AddressField from '@/components/AddressField'
+import type { Pet, Vet, PetInsurance } from '@/types'
 
 interface VetEntry {
+  id?: string
   name: string
   clinic_address: string
   phone: string
 }
 
 interface InsuranceEntry {
+  id?: string
   firm_name: string
   start_date: string
   end_date: string
   cost: string
   pdfFile: File | null
   pdfName: string
+  existingPdfUrl: string | null
 }
 
-export default function AddPetForm() {
+export default function EditPetForm({ pet, vets: initialVets, insurances: initialInsurances }: { pet: Pet; vets: Vet[]; insurances: PetInsurance[] }) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
-  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(pet.photo_url)
   const [photoFile, setPhotoFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -43,11 +47,26 @@ export default function AddPetForm() {
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null)
 
   // Vets state
-  const [vets, setVets] = useState<VetEntry[]>([{ name: '', clinic_address: '', phone: '' }])
-  // Home address state (for AddressField)
-  const [homeAddress, setHomeAddress] = useState('')
+  const [vets, setVets] = useState<VetEntry[]>(
+    initialVets.length > 0
+      ? initialVets.map((v) => ({ id: v.id, name: v.name, clinic_address: v.clinic_address || '', phone: v.phone || '' }))
+      : [{ name: '', clinic_address: '', phone: '' }]
+  )
+  // Home address state
+  const [homeAddress, setHomeAddress] = useState(pet.home_address || '')
   // Insurance state
-  const [insurances, setInsurances] = useState<InsuranceEntry[]>([])
+  const [insurances, setInsurances] = useState<InsuranceEntry[]>(
+    initialInsurances.map((ins) => ({
+      id: ins.id,
+      firm_name: ins.firm_name,
+      start_date: ins.start_date,
+      end_date: ins.end_date,
+      cost: ins.cost?.toString() || '',
+      pdfFile: null,
+      pdfName: ins.policy_pdf_url ? 'פוליסה קיימת' : '',
+      existingPdfUrl: ins.policy_pdf_url,
+    }))
+  )
   const pdfInputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const {
@@ -59,8 +78,14 @@ export default function AddPetForm() {
   } = useForm<PetFormValues>({
     resolver: zodResolver(petSchema),
     defaultValues: {
-      type: 'dog',
-      is_mixed: false,
+      name: pet.name,
+      type: pet.type,
+      dob: pet.dob || '',
+      breed: pet.is_mixed ? '' : (pet.breed || ''),
+      is_mixed: pet.is_mixed,
+      chip_id: pet.chip_id || '',
+      allergies: pet.allergies || '',
+      photo_url: pet.photo_url || '',
     },
   })
 
@@ -119,9 +144,9 @@ export default function AddPetForm() {
     return data.secure_url ?? null
   }
 
-  const addInsurance = () => setInsurances([...insurances, { firm_name: '', start_date: '', end_date: '', cost: '', pdfFile: null, pdfName: '' }])
+  const addInsurance = () => setInsurances([...insurances, { firm_name: '', start_date: '', end_date: '', cost: '', pdfFile: null, pdfName: '', existingPdfUrl: null }])
   const removeInsurance = (index: number) => setInsurances(insurances.filter((_, i) => i !== index))
-  const updateInsurance = (index: number, field: keyof Omit<InsuranceEntry, 'pdfFile' | 'pdfName'>, value: string) => {
+  const updateInsurance = (index: number, field: keyof Pick<InsuranceEntry, 'firm_name' | 'start_date' | 'end_date' | 'cost'>, value: string) => {
     const updated = [...insurances]
     updated[index] = { ...updated[index], [field]: value }
     setInsurances(updated)
@@ -130,7 +155,7 @@ export default function AddPetForm() {
     const file = e.target.files?.[0]
     if (file) {
       const updated = [...insurances]
-      updated[index] = { ...updated[index], pdfFile: file, pdfName: file.name }
+      updated[index] = { ...updated[index], pdfFile: file, pdfName: file.name, existingPdfUrl: null }
       setInsurances(updated)
     }
   }
@@ -154,7 +179,7 @@ export default function AddPetForm() {
 
   const addVet = () => setVets([...vets, { name: '', clinic_address: '', phone: '' }])
   const removeVet = (index: number) => setVets(vets.filter((_, i) => i !== index))
-  const updateVet = (index: number, field: keyof VetEntry, value: string) => {
+  const updateVet = (index: number, field: keyof Omit<VetEntry, 'id'>, value: string) => {
     const updated = [...vets]
     updated[index] = { ...updated[index], [field]: value }
     setVets(updated)
@@ -163,17 +188,15 @@ export default function AddPetForm() {
   const onSubmit = async (values: PetFormValues) => {
     setLoading(true)
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
-
-      let photo_url = values.photo_url || null
+      let photo_url = pet.photo_url
       if (photoFile) {
         const uploaded = await uploadPhoto()
         if (uploaded) photo_url = uploaded
+      } else if (!photoPreview) {
+        photo_url = null
       }
 
-      const { data: pet, error } = await supabase.from('pets').insert({
-        owner_id: user.id,
+      const { error } = await supabase.from('pets').update({
         name: values.name,
         type: values.type,
         dob: values.dob || null,
@@ -183,13 +206,14 @@ export default function AddPetForm() {
         home_address: homeAddress || null,
         allergies: values.allergies || null,
         chip_id: values.chip_id || null,
-      }).select('id').single()
+      }).eq('id', pet.id)
 
       if (error) throw error
 
-      // Insert vets
+      // Replace vets: delete all existing, insert new
+      await supabase.from('vets').delete().eq('pet_id', pet.id)
       const validVets = vets.filter((v) => v.name.trim())
-      if (validVets.length > 0 && pet) {
+      if (validVets.length > 0) {
         const { error: vetError } = await supabase.from('vets').insert(
           validVets.map((v) => ({
             pet_id: pet.id,
@@ -198,30 +222,29 @@ export default function AddPetForm() {
             phone: v.phone.trim() || null,
           }))
         )
-        if (vetError) console.error('Vet insert error:', vetError)
+        if (vetError) console.error('Vet update error:', vetError)
       }
 
-      // Insert insurance
+      // Replace insurance
+      await supabase.from('pet_insurance').delete().eq('pet_id', pet.id)
       const validInsurances = insurances.filter((ins) => ins.firm_name.trim() && ins.start_date && ins.end_date)
-      if (validInsurances.length > 0 && pet) {
-        for (const ins of validInsurances) {
-          let policy_pdf_url: string | null = null
-          if (ins.pdfFile) {
-            policy_pdf_url = await uploadPdf(ins.pdfFile)
-          }
-          const { error: insError } = await supabase.from('pet_insurance').insert({
-            pet_id: pet.id,
-            firm_name: ins.firm_name.trim(),
-            start_date: ins.start_date,
-            end_date: ins.end_date,
-            cost: ins.cost ? parseFloat(ins.cost) : null,
-            policy_pdf_url,
-          })
-          if (insError) console.error('Insurance insert error:', insError)
+      for (const ins of validInsurances) {
+        let policy_pdf_url = ins.existingPdfUrl
+        if (ins.pdfFile) {
+          policy_pdf_url = await uploadPdf(ins.pdfFile)
         }
+        const { error: insError } = await supabase.from('pet_insurance').insert({
+          pet_id: pet.id,
+          firm_name: ins.firm_name.trim(),
+          start_date: ins.start_date,
+          end_date: ins.end_date,
+          cost: ins.cost ? parseFloat(ins.cost) : null,
+          policy_pdf_url,
+        })
+        if (insError) console.error('Insurance update error:', insError)
       }
 
-      router.push('/dashboard')
+      router.push(`/dashboard/pets/${pet.id}`)
       router.refresh()
     } catch (err) {
       console.error(err)
@@ -253,7 +276,6 @@ export default function AddPetForm() {
               />
             </div>
 
-            {/* Zoom controls */}
             <div className="flex items-center justify-center gap-3 py-3 px-4 border-t border-slate-100">
               <ZoomOut className="w-4 h-4 text-slate-400" />
               <input
@@ -268,7 +290,6 @@ export default function AddPetForm() {
               <ZoomIn className="w-4 h-4 text-slate-400" />
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3 p-4 border-t border-slate-100" dir="rtl">
               <button
                 type="button"
@@ -502,7 +523,6 @@ export default function AddPetForm() {
                 )}
               </div>
 
-              {/* Vet Name */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   שם הוטרינר <span className="text-red-500">*</span>
@@ -515,7 +535,6 @@ export default function AddPetForm() {
                 />
               </div>
 
-              {/* Clinic Address */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">כתובת מרפאה</label>
                 <AddressField
@@ -526,7 +545,6 @@ export default function AddPetForm() {
                 />
               </div>
 
-              {/* Phone */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">טלפון</label>
                 <div className="relative">
@@ -630,14 +648,26 @@ export default function AddPetForm() {
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1.5">פוליסה (PDF)</label>
-                <button
-                  type="button"
-                  onClick={() => pdfInputRefs.current[index]?.click()}
-                  className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
-                >
-                  <FileText className="w-4 h-4" />
-                  {ins.pdfName || 'העלה קובץ PDF'}
-                </button>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => pdfInputRefs.current[index]?.click()}
+                    className="flex items-center gap-2 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                  >
+                    <FileText className="w-4 h-4" />
+                    {ins.pdfName || 'העלה קובץ PDF'}
+                  </button>
+                  {ins.existingPdfUrl && (
+                    <a
+                      href={ins.existingPdfUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-indigo-500 hover:underline"
+                    >
+                      צפה בפוליסה
+                    </a>
+                  )}
+                </div>
                 <input
                   ref={(el) => { pdfInputRefs.current[index] = el }}
                   type="file"
@@ -657,7 +687,7 @@ export default function AddPetForm() {
             disabled={loading}
             className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold py-3 rounded-xl transition-colors"
           >
-            {loading ? 'שומר...' : 'הוסף חיה'}
+            {loading ? 'שומר...' : 'שמור שינויים'}
           </button>
           <button
             type="button"

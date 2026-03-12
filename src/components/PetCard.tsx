@@ -2,6 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { MapPin, Cpu, Calendar } from 'lucide-react'
 import type { Pet } from '@/types'
+import { calcPetAge } from '@/lib/petAge'
 
 export default function PetCard({ pet }: { pet: Pet }) {
   return (
@@ -29,6 +30,9 @@ export default function PetCard({ pet }: { pet: Pet }) {
         {/* Info */}
         <div className="p-4">
           <h3 className="text-lg font-bold text-slate-800 mb-0.5">{pet.name}</h3>
+          {pet.dob && (
+            <p className="text-sm text-indigo-500 font-medium mb-0.5">גיל: {calcPetAge(pet.dob)}</p>
+          )}
           <p className="text-sm text-slate-400 mb-3">
             {pet.is_mixed ? 'מעורב' : pet.breed || 'גזע לא ידוע'}
           </p>

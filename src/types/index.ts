@@ -45,3 +45,14 @@ export interface Vet {
   phone: string | null
   created_at: string
 }
+
+export interface PetInsurance {
+  id: string
+  pet_id: string
+  firm_name: string
+  start_date: string
+  end_date: string
+  cost: number | null
+  policy_pdf_url: string | null
+  created_at: string
+}

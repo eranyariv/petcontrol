@@ -2,8 +2,9 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { PlusCircle, ArrowRight, MapPin, Cpu, Wheat, Calendar, Stethoscope, Phone } from 'lucide-react'
-import type { Pet, MedicalRecord, Vet } from '@/types'
+import { PlusCircle, ArrowRight, MapPin, Cpu, Wheat, Calendar, Stethoscope, Phone, Pencil, Shield, FileText } from 'lucide-react'
+import type { Pet, MedicalRecord, Vet, PetInsurance } from '@/types'
+import { calcPetAge } from '@/lib/petAge'
 
 const visitTypeLabels: Record<string, string> = {
   routine: 'בדיקה שגרתית',
@@ -44,9 +45,17 @@ export default async function PetDetailPage({
     .eq('pet_id', params.id)
     .order('created_at', { ascending: true })
 
+  const { data: insuranceData } = await supabase
+    .from('pet_insurance')
+    .select('*')
+    .eq('pet_id', params.id)
+    .order('created_at', { ascending: true })
+
   const petData = pet as Pet
   const medicalRecords = (records ?? []) as MedicalRecord[]
   const vets = (vetsData ?? []) as Vet[]
+  const insurances = (insuranceData ?? []) as PetInsurance[]
+  const today = new Date().toISOString().split('T')[0]
 
   return (
     <div>
@@ -82,11 +91,23 @@ export default async function PetDetailPage({
             </div>
 
             <div className="p-5 space-y-4">
-              <div>
-                <h1 className="text-2xl font-bold text-slate-800">{petData.name}</h1>
-                <p className="text-slate-500">
-                  {petData.is_mixed ? 'מעורב' : petData.breed || 'גזע לא ידוע'}
-                </p>
+              <div className="flex items-start justify-between">
+                <div>
+                  <h1 className="text-2xl font-bold text-slate-800">{petData.name}</h1>
+                  {petData.dob && (
+                    <p className="text-indigo-500 font-medium">גיל: {calcPetAge(petData.dob)}</p>
+                  )}
+                  <p className="text-slate-500">
+                    {petData.is_mixed ? 'מעורב' : petData.breed || 'גזע לא ידוע'}
+                  </p>
+                </div>
+                <Link
+                  href={`/dashboard/pets/${petData.id}/edit`}
+                  className="flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                >
+                  <Pencil className="w-4 h-4" />
+                  עריכה
+                </Link>
               </div>
 
               {petData.dob && (
@@ -193,6 +214,58 @@ export default async function PetDetailPage({
                     )}
                   </div>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {/* Insurance */}
+          {insurances.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Shield className="w-5 h-5 text-indigo-400" />
+                ביטוח
+              </h2>
+              <div className="space-y-3">
+                {insurances.map((ins) => {
+                  const isExpired = ins.end_date < today
+                  return (
+                    <div
+                      key={ins.id}
+                      className={`p-4 rounded-xl border space-y-2 ${isExpired ? 'border-red-200 bg-red-50/50' : 'border-slate-100 bg-slate-50/50'}`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <h3 className="font-semibold text-slate-800">{ins.firm_name}</h3>
+                        {isExpired && (
+                          <span className="text-xs font-medium bg-red-100 text-red-700 px-2.5 py-0.5 rounded-full">
+                            פג תוקף
+                          </span>
+                        )}
+                      </div>
+                      <div className={`flex items-center gap-2 text-sm ${isExpired ? 'text-red-600' : 'text-slate-600'}`}>
+                        <Calendar className="w-4 h-4 shrink-0" />
+                        <span>
+                          {new Date(ins.start_date).toLocaleDateString('he-IL')} — {new Date(ins.end_date).toLocaleDateString('he-IL')}
+                        </span>
+                      </div>
+                      {ins.cost && (
+                        <p className="text-sm text-slate-600">
+                          עלות: <span dir="ltr" className="font-medium">{ins.cost.toLocaleString('he-IL')}</span> ש"ח
+                        </p>
+                      )}
+                      {ins.policy_pdf_url && (
+                        <a
+                          href={ins.policy_pdf_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                        >
+                          <FileText className="w-4 h-4" />
+                          צפה בפוליסה
+                        </a>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}
