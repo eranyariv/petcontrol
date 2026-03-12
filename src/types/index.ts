@@ -56,3 +56,11 @@ export interface PetInsurance {
   policy_pdf_url: string | null
   created_at: string
 }
+
+export interface PetSocialProfile {
+  id: string
+  pet_id: string
+  platform: string
+  url: string
+  created_at: string
+}

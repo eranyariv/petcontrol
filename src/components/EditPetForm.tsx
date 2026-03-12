@@ -6,13 +6,13 @@ import { petSchema, type PetFormValues } from '@/lib/validations/pet'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState, useRef, useCallback } from 'react'
-import { Dog, Cat, Upload, X, ZoomIn, ZoomOut, Check, PlusCircle, Trash2, Phone, Stethoscope, Shield, FileText } from 'lucide-react'
+import { Dog, Cat, Upload, X, ZoomIn, ZoomOut, Check, PlusCircle, Trash2, Phone, Stethoscope, Shield, FileText, Share2 } from 'lucide-react'
 import clsx from 'clsx'
 import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
 import getCroppedImg from '@/lib/cropImage'
 import AddressField from '@/components/AddressField'
-import type { Pet, Vet, PetInsurance } from '@/types'
+import type { Pet, Vet, PetInsurance, PetSocialProfile } from '@/types'
 
 interface VetEntry {
   id?: string
@@ -32,7 +32,22 @@ interface InsuranceEntry {
   existingPdfUrl: string | null
 }
 
-export default function EditPetForm({ pet, vets: initialVets, insurances: initialInsurances }: { pet: Pet; vets: Vet[]; insurances: PetInsurance[] }) {
+const socialPlatforms = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'x', label: 'X (Twitter)' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'other', label: 'אחר' },
+]
+
+interface SocialEntry {
+  id?: string
+  platform: string
+  url: string
+}
+
+export default function EditPetForm({ pet, vets: initialVets, insurances: initialInsurances, socials: initialSocials }: { pet: Pet; vets: Vet[]; insurances: PetInsurance[]; socials: PetSocialProfile[] }) {
   const router = useRouter()
   const supabase = createClient()
   const [loading, setLoading] = useState(false)
@@ -68,6 +83,10 @@ export default function EditPetForm({ pet, vets: initialVets, insurances: initia
     }))
   )
   const pdfInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  // Social profiles state
+  const [socials, setSocials] = useState<SocialEntry[]>(
+    initialSocials.map((s) => ({ id: s.id, platform: s.platform, url: s.url }))
+  )
 
   const {
     register,
@@ -177,6 +196,14 @@ export default function EditPetForm({ pet, vets: initialVets, insurances: initia
     return data.secure_url ?? null
   }
 
+  const addSocial = () => setSocials([...socials, { platform: 'instagram', url: '' }])
+  const removeSocial = (index: number) => setSocials(socials.filter((_, i) => i !== index))
+  const updateSocial = (index: number, field: keyof Omit<SocialEntry, 'id'>, value: string) => {
+    const updated = [...socials]
+    updated[index] = { ...updated[index], [field]: value }
+    setSocials(updated)
+  }
+
   const addVet = () => setVets([...vets, { name: '', clinic_address: '', phone: '' }])
   const removeVet = (index: number) => setVets(vets.filter((_, i) => i !== index))
   const updateVet = (index: number, field: keyof Omit<VetEntry, 'id'>, value: string) => {
@@ -242,6 +269,20 @@ export default function EditPetForm({ pet, vets: initialVets, insurances: initia
           policy_pdf_url,
         })
         if (insError) console.error('Insurance update error:', insError)
+      }
+
+      // Replace social profiles
+      await supabase.from('pet_social_profiles').delete().eq('pet_id', pet.id)
+      const validSocials = socials.filter((s) => s.url.trim())
+      if (validSocials.length > 0) {
+        const { error: socialError } = await supabase.from('pet_social_profiles').insert(
+          validSocials.map((s) => ({
+            pet_id: pet.id,
+            platform: s.platform,
+            url: s.url.trim(),
+          }))
+        )
+        if (socialError) console.error('Social profile update error:', socialError)
       }
 
       router.push(`/dashboard/pets/${pet.id}`)
@@ -674,6 +715,69 @@ export default function EditPetForm({ pet, vets: initialVets, insurances: initia
                   accept="application/pdf"
                   className="hidden"
                   onChange={(e) => handlePdfChange(index, e)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Social Profiles */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-indigo-400" />
+              רשתות חברתיות
+            </h2>
+            <button
+              type="button"
+              onClick={addSocial}
+              className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            >
+              <PlusCircle className="w-4 h-4" />
+              הוסף פרופיל
+            </button>
+          </div>
+
+          {socials.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-4">לא הוגדרו פרופילים חברתיים</p>
+          )}
+
+          {socials.map((social, index) => (
+            <div key={index} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-500">פרופיל {index + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removeSocial(index)}
+                  className="text-red-400 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">פלטפורמה</label>
+                <select
+                  value={social.platform}
+                  onChange={(e) => updateSocial(index, 'platform', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all bg-white"
+                >
+                  {socialPlatforms.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  קישור לפרופיל <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={social.url}
+                  onChange={(e) => updateSocial(index, 'url', e.target.value)}
+                  placeholder="https://www.instagram.com/my_pet"
+                  dir="ltr"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
                 />
               </div>
             </div>

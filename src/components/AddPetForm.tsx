@@ -6,7 +6,7 @@ import { petSchema, type PetFormValues } from '@/lib/validations/pet'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { useState, useRef, useCallback } from 'react'
-import { Dog, Cat, Upload, X, ZoomIn, ZoomOut, Check, PlusCircle, Trash2, Phone, Stethoscope, Shield, FileText } from 'lucide-react'
+import { Dog, Cat, Upload, X, ZoomIn, ZoomOut, Check, PlusCircle, Trash2, Phone, Stethoscope, Shield, FileText, Share2 } from 'lucide-react'
 import clsx from 'clsx'
 import Cropper from 'react-easy-crop'
 import type { Area } from 'react-easy-crop'
@@ -26,6 +26,20 @@ interface InsuranceEntry {
   cost: string
   pdfFile: File | null
   pdfName: string
+}
+
+const socialPlatforms = [
+  { value: 'instagram', label: 'Instagram' },
+  { value: 'facebook', label: 'Facebook' },
+  { value: 'x', label: 'X (Twitter)' },
+  { value: 'tiktok', label: 'TikTok' },
+  { value: 'youtube', label: 'YouTube' },
+  { value: 'other', label: 'אחר' },
+]
+
+interface SocialEntry {
+  platform: string
+  url: string
 }
 
 export default function AddPetForm() {
@@ -49,6 +63,8 @@ export default function AddPetForm() {
   // Insurance state
   const [insurances, setInsurances] = useState<InsuranceEntry[]>([])
   const pdfInputRefs = useRef<(HTMLInputElement | null)[]>([])
+  // Social profiles state
+  const [socials, setSocials] = useState<SocialEntry[]>([])
 
   const {
     register,
@@ -152,6 +168,14 @@ export default function AddPetForm() {
     return data.secure_url ?? null
   }
 
+  const addSocial = () => setSocials([...socials, { platform: 'instagram', url: '' }])
+  const removeSocial = (index: number) => setSocials(socials.filter((_, i) => i !== index))
+  const updateSocial = (index: number, field: keyof SocialEntry, value: string) => {
+    const updated = [...socials]
+    updated[index] = { ...updated[index], [field]: value }
+    setSocials(updated)
+  }
+
   const addVet = () => setVets([...vets, { name: '', clinic_address: '', phone: '' }])
   const removeVet = (index: number) => setVets(vets.filter((_, i) => i !== index))
   const updateVet = (index: number, field: keyof VetEntry, value: string) => {
@@ -219,6 +243,19 @@ export default function AddPetForm() {
           })
           if (insError) console.error('Insurance insert error:', insError)
         }
+      }
+
+      // Insert social profiles
+      const validSocials = socials.filter((s) => s.url.trim())
+      if (validSocials.length > 0 && pet) {
+        const { error: socialError } = await supabase.from('pet_social_profiles').insert(
+          validSocials.map((s) => ({
+            pet_id: pet.id,
+            platform: s.platform,
+            url: s.url.trim(),
+          }))
+        )
+        if (socialError) console.error('Social profile insert error:', socialError)
       }
 
       router.push('/dashboard')
@@ -644,6 +681,69 @@ export default function AddPetForm() {
                   accept="application/pdf"
                   className="hidden"
                   onChange={(e) => handlePdfChange(index, e)}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Social Profiles */}
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm space-y-5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-700 flex items-center gap-2">
+              <Share2 className="w-5 h-5 text-indigo-400" />
+              רשתות חברתיות
+            </h2>
+            <button
+              type="button"
+              onClick={addSocial}
+              className="flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+            >
+              <PlusCircle className="w-4 h-4" />
+              הוסף פרופיל
+            </button>
+          </div>
+
+          {socials.length === 0 && (
+            <p className="text-sm text-slate-400 text-center py-4">לא הוגדרו פרופילים חברתיים</p>
+          )}
+
+          {socials.map((social, index) => (
+            <div key={index} className="p-4 rounded-xl border border-slate-100 bg-slate-50/50 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium text-slate-500">פרופיל {index + 1}</span>
+                <button
+                  type="button"
+                  onClick={() => removeSocial(index)}
+                  className="text-red-400 hover:text-red-600 transition-colors"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">פלטפורמה</label>
+                <select
+                  value={social.platform}
+                  onChange={(e) => updateSocial(index, 'platform', e.target.value)}
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all bg-white"
+                >
+                  {socialPlatforms.map((p) => (
+                    <option key={p.value} value={p.value}>{p.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
+                  קישור לפרופיל <span className="text-red-500">*</span>
+                </label>
+                <input
+                  value={social.url}
+                  onChange={(e) => updateSocial(index, 'url', e.target.value)}
+                  placeholder="https://www.instagram.com/my_pet"
+                  dir="ltr"
+                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 text-slate-800 placeholder-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-400 transition-all"
                 />
               </div>
             </div>

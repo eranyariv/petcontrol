@@ -2,9 +2,18 @@ import { createClient } from '@/lib/supabase/server'
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { PlusCircle, ArrowRight, MapPin, Cpu, Wheat, Calendar, Stethoscope, Phone, Pencil, Shield, FileText } from 'lucide-react'
-import type { Pet, MedicalRecord, Vet, PetInsurance } from '@/types'
+import { PlusCircle, ArrowRight, MapPin, Cpu, Wheat, Calendar, Stethoscope, Phone, Pencil, Shield, FileText, Share2, ExternalLink } from 'lucide-react'
+import type { Pet, MedicalRecord, Vet, PetInsurance, PetSocialProfile } from '@/types'
 import { calcPetAge } from '@/lib/petAge'
+
+const platformLabels: Record<string, string> = {
+  instagram: 'Instagram',
+  facebook: 'Facebook',
+  x: 'X (Twitter)',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  other: 'אחר',
+}
 
 const visitTypeLabels: Record<string, string> = {
   routine: 'בדיקה שגרתית',
@@ -51,10 +60,17 @@ export default async function PetDetailPage({
     .eq('pet_id', params.id)
     .order('created_at', { ascending: true })
 
+  const { data: socialsData } = await supabase
+    .from('pet_social_profiles')
+    .select('*')
+    .eq('pet_id', params.id)
+    .order('created_at', { ascending: true })
+
   const petData = pet as Pet
   const medicalRecords = (records ?? []) as MedicalRecord[]
   const vets = (vetsData ?? []) as Vet[]
   const insurances = (insuranceData ?? []) as PetInsurance[]
+  const socialProfiles = (socialsData ?? []) as PetSocialProfile[]
   const today = new Date().toISOString().split('T')[0]
 
   return (
@@ -159,7 +175,7 @@ export default async function PetDetailPage({
                 </div>
                 {petData.chip_id && petData.type === 'dog' && (
                   <a
-                    href={`https://www.moag.gov.il/yechidot/vetserv/dog_registry/Pages/default.aspx`}
+                    href="https://dogsearch.moag.gov.il/#/pages/pets"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block text-center w-full py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-xl text-sm font-medium transition-colors"
@@ -266,6 +282,30 @@ export default async function PetDetailPage({
                     </div>
                   )
                 })}
+              </div>
+            </div>
+          )}
+
+          {/* Social Profiles */}
+          {socialProfiles.length > 0 && (
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+              <h2 className="text-xl font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <Share2 className="w-5 h-5 text-indigo-400" />
+                רשתות חברתיות
+              </h2>
+              <div className="flex flex-wrap gap-3">
+                {socialProfiles.map((sp) => (
+                  <a
+                    key={sp.id}
+                    href={sp.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:border-indigo-200 hover:bg-indigo-50 transition-colors text-sm font-medium text-slate-700"
+                  >
+                    <span>{platformLabels[sp.platform] || sp.platform}</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-indigo-400" />
+                  </a>
+                ))}
               </div>
             </div>
           )}
