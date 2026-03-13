@@ -18,8 +18,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="he" dir="rtl">
-      <body className="antialiased bg-slate-50 min-h-screen flex flex-col">
-        <div className="flex-1">{children}</div>
+      <body className="antialiased bg-slate-50 min-h-screen">
+        {children}
         <Footer />
       </body>
     </html>
